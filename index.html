@@ -315,6 +315,7 @@ const SHOP = {
     { id: 'comet', name: 'Comet arrow', a: '#bfe9ff', b: '#8a4fd0', fx: 'comet', big: true, boom: true, price: 900 },
     { id: 'disco', name: 'Disco arrow', a: '#ff4fd8', b: '#19e0ff', fx: 'disco', big: true, boom: true, price: 1100 },
     { id: 'dragonfire', name: 'Dragon breath arrow', a: '#7a1512', b: C.gold, fx: 'fire', big: true, boom: true, price: 1400 },
+    { id: 'enchanted', name: 'Enchanted arrow (never misses)', a: '#7b5cff', b: '#7ffcff', fx: 'magic', big: true, boom: true, home: true, price: 3000 },
     { id: 'golden', name: 'Golden Arrow', a: C.gold, b: C.white, earn: true }],
   target: [  // a and b alternate in bands; the classic face has no a and keeps the five ring colors
     { id: 'classic', name: 'Classic', price: 0 },
@@ -328,7 +329,8 @@ const TRAIL = {   // sparks left behind by special arrows in flight
   fire: ['#e8452c', '#ff8a1f', '#ffd23f'], frost: ['#7cc7f2', '#bfe9ff', '#ffffff'],
   rainbow: ['#e8452c', '#ffd23f', '#4cc24a', '#2f7fc2', '#8a4fd0'], disco: ['#ff4fd8', '#19e0ff', '#ffe14d', '#4cc24a', '#ffffff'],
   rocket: ['#ff8a1f', '#9aa0a8', '#d5d8dc'], bolt: ['#ffe14d', '#ffffff'], fish: ['#7cc7f2', '#bfe9ff'],
-  chicken: ['#ffffff', '#ffe9a8'], comet: ['#ffffff', '#bfe9ff', '#b79cff'] };
+  chicken: ['#ffffff', '#ffe9a8'], comet: ['#ffffff', '#bfe9ff', '#b79cff'],
+  magic: ['#7b5cff', '#7ffcff', '#ffffff', '#ff9cf5'] };
 const save = { coins: 0, own: { bow: ['wood'], arrow: ['wood'], target: ['classic'] }, eq: { bow: 'wood', arrow: 'wood', target: 'classic' } };
 try {
   const old = JSON.parse(localStorage.getItem('nl-save') || 'null');
@@ -448,7 +450,17 @@ function fire() {
   let x = a.x + wind * U * 0.07, y = a.y + (1 - p) * (1 - p) * U * 0.45;
   const s = scene.snap && scene.snap(x, y);
   if (s) { x = s.x; y = s.y; }
-  arrows.push({ x0: W / 2, y0: H + 10, x, y, to: s || null, t: 0, T: 0.34 });
+  // The enchanted arrow bends toward the nearest target and always lands on it; better aim still lands nearer the center.
+  let home = null;
+  if (!s && gear('arrow').home && scene.homing) {
+    let best = Infinity;
+    scene.homing().forEach(tg => { const d = Math.hypot(x - tg.x, y - tg.y) - tg.r; if (d < best) { best = d; home = tg; } });
+    if (home) {
+      const ox = (x - home.x) / home.r, oy = (y - home.y) / home.r, m = Math.hypot(ox, oy), k = m ? Math.min(0.5 * m, 0.7) / m : 0;
+      home = { tg: home, ox: ox * k, oy: oy * k };
+    }
+  }
+  arrows.push({ x0: W / 2, y0: H + 10, x, y, to: s || null, home, t: 0, T: 0.34 });
   sfx('shoot');
 }
 function stick(ref, x, y) {
@@ -535,6 +547,7 @@ function Rush() {
     tg.y = HZ + drop() * s - tg.r * 1.35;
   }
   return {
+    homing: () => ts,
     intensity: () => Math.min(1, run / 50),
     name: 'Classic', key: 'rush', coin: s => Math.round(s / 3), again: Rush, parent: mainMenu, backTo: 'Range', drawTime: 0.35,
     sub: 'Hit the targets as they rush past. Let 5 get away and the run is over.',
@@ -593,6 +606,7 @@ function Bullseyes(secs) {
   const tg = { fx: 0.5, k: 1, x: 0, y: 0, r: 0 };
   let time = secs, hits = 0, moving = false;
   return {
+    homing: () => [tg],
     intensity: () => 1 - time / secs,
     name: 'Bullseyes', key: 'bullseye' + secs, coin: s => s * 4, again: () => Bullseyes(secs), parent: bullMenu, backTo: 'Bullseyes',
     sub: secs + ' seconds. Only the center counts.',
@@ -633,7 +647,7 @@ function Balloons(secs) {
   const bs = [];
   return {
     intensity: () => 1 - time / secs,
-    hitSound: 'pop', name: 'Balloons', key: secs === 30 ? 'balloons' : 'balloons60', coin: s => Math.round(s * 0.6), again: () => Balloons(secs), parent: balloonMenu, backTo: 'Balloons',
+    homing: () => bs, hitSound: 'pop', name: 'Balloons', key: secs === 30 ? 'balloons' : 'balloons60', coin: s => Math.round(s * 0.6), again: () => Balloons(secs), parent: balloonMenu, backTo: 'Balloons',
     sub: 'White 1, black 2, blue 3, red 4, gold 5.',
     layout() {},
     ready() { return !this.ended; },
@@ -673,6 +687,7 @@ function Apple() {
   let round = 0, misses = 0, lock = false;
   const appleR = () => Math.max(U * 0.012, U * 0.034 * Math.pow(0.88, round));
   return {
+    homing: () => (lock ? [] : [{ x: d.x, y: d.y - d.r - appleR() * 0.9, r: appleR() }]),
     intensity: () => Math.min(1, round / 6 + misses * 0.15),
     name: 'Apple', key: 'apple', coin: s => s * 6, again: Apple, parent: appleMenu, backTo: 'Apples',
     sub: 'Hit the apple. Three misses and you are out.',
@@ -721,6 +736,7 @@ function Pendulum() {
   const tg = { x: 0, y: 0, r: 0 }, pv = { x: 0, y: 0, L: 0 };
   let left = 5, landed = 0, total = 0;
   return {
+    homing: () => [tg],
     intensity: () => landed / 5,
     name: 'Pendulum', key: 'pendulum', coin: s => Math.round(s / 3), again: Pendulum, parent: hub,
     sub: '5 arrows at a swinging target. It moves back after every shot.',
@@ -760,6 +776,7 @@ function AppleRow() {
   let tries = 0, left = N;
   const rail = () => HZ - U * 0.12;
   return {
+    homing: () => apples.filter(a => !a.hit),
     intensity: () => (N - left) / N,
     name: 'Apple row', key: 'applerow12', lower: true, coin: s => Math.max(3, 40 - s), again: AppleRow, parent: appleMenu, backTo: 'Apples',
     sub: N + ' apples in a row. Clear them in as few arrows as you can.',
@@ -1177,7 +1194,8 @@ function frame(now) {
     musicTick();
     for (let i = arrows.length; i--;) {
       const a = arrows[i];
-      if (a.to) { a.x = a.to.x; a.y = a.to.y; }   // stay locked on a menu target even if the window resizes mid-flight
+      if (a.to) { a.x = a.to.x; a.y = a.to.y; }
+      if (a.home) { a.x = a.home.tg.x + a.home.ox * a.home.tg.r; a.y = a.home.tg.y + a.home.oy * a.home.tg.r; }   // follows moving targets   // stay locked on a menu target even if the window resizes mid-flight
       if ((a.t += dt) >= a.T) { arrows.splice(i, 1);
         const r = scene.land(a.x, a.y), ga = gear('arrow'), burst = ga.boom && TRAIL[ga.fx];
         if (burst) for (let j = 0; j < 16; j++) { const q = rand() * TAU, v = U * (0.15 + rand() * 0.4); parts.push({ x: a.x, y: a.y, vx: Math.cos(q) * v, vy: Math.sin(q) * v, t: 0, c: burst[j % burst.length] }); }
