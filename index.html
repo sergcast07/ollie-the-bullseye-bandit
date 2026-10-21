@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Nock & Loose</title>
+<title>Ollie the Bullseye Bandit</title>
 <style>body { margin: 0; } [hidden] { display: none !important; }</style>
 </head>
 <body>
@@ -177,7 +177,7 @@ canvas:focus-visible, button:focus-visible { outline: 3px solid var(--gold); }
     <div class="stats" id="stats"></div>
   </div>
   <div class="banner">
-    <h1 id="h1">Nock &amp; Loose</h1>
+    <h1 id="h1">Ollie the Bullseye Bandit</h1>
     <p id="sub"></p>
   </div>
   <div id="signs"></div>
@@ -792,7 +792,7 @@ const appleMenu = () => Menu('Apples', 'Which apple game?', [
 const hub = () => Menu('Minigames', 'Shoot one to play', [
   { label: 'Apples', make: appleMenu }, { label: 'Bullseyes', make: bullMenu },
   { label: 'Pendulum', make: Pendulum }, { label: 'Balloons', make: balloonMenu }], mainMenu, 'Range');
-const mainMenu = () => Menu('Nock & Loose', 'Hold to draw, release to loose. Shoot a target to choose.', [
+const mainMenu = () => Menu('Ollie the Bullseye Bandit', 'Hold to draw, release to loose. Shoot a target to choose.', [
   { label: 'Minigames', tint: 'red', make: hub }, { label: 'Classic', tint: 'blue', make: Rush }], null);
 
 /* ---------- scene plumbing ---------- */
